@@ -27,3 +27,10 @@ Run the CLI tool:
 ```
 python main.py
 ```
+
+
+## Task remaining 
+
+- handle composite key 
+- handle unique key
+- Integration of Mysql and Mssql
