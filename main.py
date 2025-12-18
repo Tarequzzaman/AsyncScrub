@@ -2,9 +2,10 @@ from getpass import getpass
 import asyncio
 from config.db_config import DBConfig
 from db.connector import get_sync_engine, get_async_engine
-from db.schema_reader import reflect_schema
+from db.schema_reader import reflect_metadata as reflect_schema
 from db.schema_writer import create_schema
 from db.data_inserter import insert_fake_data
+
 
 def prompt_db_config(role: str) -> DBConfig:
     print(f"\n🔧 Enter {role.upper()} database configuration:")
@@ -26,7 +27,8 @@ def prompt_db_config(role: str) -> DBConfig:
 
     return DBConfig(db_type, host, port, username, password, database)
 
-def main():
+
+async def main():
     print("🎛️  Data Scrubber CLI\n")
 
     # Source DB
@@ -38,8 +40,8 @@ def main():
     # Destination DB
     dest_config = prompt_db_config("destination")
     print("🔗 Connecting to destination DB...")
-    dest_async_engine = get_async_engine(dest_config)
     dest_sync_engine = get_sync_engine(dest_config)
+    dest_async_engine = await get_async_engine(dest_config)
     print("✅ Connected to destination database.\n")
 
     # Rows per table
@@ -48,17 +50,29 @@ def main():
 
     # Reflect schema from source
     print("📥 Reflecting source schema...")
-    metadata = reflect_schema(source_engine)
+    metadata, categorical_values, unique_columns, composite_uniques, identity_column_map = await reflect_schema(source_engine)
 
     # Create schema in destination using SYNC engine
     print("📤 Creating destination schema...")
     create_schema(metadata, dest_sync_engine)
-
+    
     # Insert fake data using ASYNC engine
+    dest_db_type = dest_config.db_type
+
     print("🧪 Inserting fake data...")
-    asyncio.run(insert_fake_data(metadata, dest_async_engine, num_rows))
+    await insert_fake_data(
+        metadata=metadata,
+        async_engine_or_conn=dest_async_engine,
+        num_rows=num_rows,
+        unique_columns=unique_columns,
+        categorical_values=categorical_values,
+        composite_uniques=composite_uniques,
+        db_type=dest_db_type, 
+        identity_column_map= identity_column_map
+    )
 
     print("✅ Data scrubbing complete!")
 
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
